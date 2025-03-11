@@ -1,11 +1,15 @@
-# Monte Carlo Tree Search (MCTS) for 2048
+# RL for 2048
 
-This project implements a Monte Carlo Tree Search (MCTS) algorithm to play the game 2048. MCTS is a decision-making algorithm commonly used in games, which combines random sampling of the search space with a tree-based structure to evaluate the potential outcomes of moves.
+This project implements a Deep Q-Network (DQN) using PyTorch for reinforcement learning of the game 2048.
 
-## Features
+## Features  
 
-- **MCTS Algorithm**: Uses exploration and exploitation to simulate and evaluate possible game states.
-- **Customizable Parameters**: Adjust MCTS iterations, exploration constants, and simulation depth for better performance.
-- **2048 Game Environment**: Fully functional 2048 game implemented in Python.
-- **Heuristic-Based Scoring**: Evaluates board states to maximize tile values and merges.
+- **2048 Game Environment**: Fully functional 2048 game implemented in Python, serving as the environment for training the AI agent.  
+- **Deep Q-Network (DQN) Agent**: Utilizes a neural network to learn optimal moves based on past game experiences.  
+- **Heuristic-Based Reward System**: Encourages merging high-value tiles and maintaining a structured board layout to improve gameplay efficiency.  
+- **Experience Replay**: Stores past game states and samples mini-batches to improve training stability and reduce correlation between consecutive moves.  
+- **PyTorch-Based Neural Network**: Implements a multi-layer feedforward network using PyTorch for decision-making.  
+- **Exploration vs. Exploitation**: Balances random moves and learned strategies using an epsilon-greedy approach to refine gameplay over time.  
+- **Training with Discount Factor**: Uses a gamma discount factor to prioritize long-term rewards over immediate gains, leading to smarter moves.  
+- **Performance Tracking**: Logs scores and highest tiles achieved, plotting performance trends over multiple games.  
 
