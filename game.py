@@ -2,10 +2,11 @@ import pygame
 import random
 from enum import Enum
 from collections import namedtuple
+import numpy as np
 
 pygame.init()
-font = pygame.font.Font('arial.ttf', 40)
-
+font = pygame.font.Font('arial.ttf', 25)
+#font = pygame.font.SysFont('arial', 25)
 
 class Direction(Enum):
     RIGHT = 1
@@ -23,77 +24,143 @@ BLACK = (0,0,0)
 TANB = (235,188,117)
 TAN = (255,231,193)
 
-BLOCK_SIZE = 20
+class GameAI:
 
-
-class HumanGame:
-    
     def __init__(self, w=500, h=500):
         self.w = w
         self.h = h
+        self.score = 0
         # init display
         self.display = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption('2048')
+        self.reset()
+
+
+    def reset(self):
+        self.score = 0
         self.arr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         self.arr[random.randint(0, 15)] = 2
         ran = random.randint(0, 15)
         while(self.arr[ran] != 0):
             ran = random.randint(0, 15)
         self.arr[ran] = 2
+        self._update_ui()
 
 
-        #self.clock = pygame.time.Clock()
+    def board_value(self):
+        """
+        Evaluate the board based on advanced heuristics.
         
-        # init game state
-        
-        self.score = 0
-        
-    def play_step(self):
+        Heuristics include:
+        1. Empty spaces
+        2. Highest tile in a corner
+        3. Smoothness (penalizes sharp differences)
+        4. Monotonicity (reward rows/columns that increase or decrease consistently)
+        5. Merging potential
+        6. Snake pattern alignment
+        """
+        arr = self.arr  # Flat list of 16 integers
+        score = 0
+
+        # 1. Reward empty spaces
+        empty_spaces = arr.count(0)
+        score += empty_spaces * 30
+
+        # 2. Reward highest tile in a corner
+        # 2. Reward highest tile in a corner
+        highest_tile = max(arr)
+        corner_positions = [0, 3, 12, 15]  # Top-left, top-right, bottom-left, bottom-right
+        if arr[15] == highest_tile:  # Prefer bottom-right corner
+            score += highest_tile * 25  # Strong incentive for keeping the highest tile in the bottom-right corner
+        else:
+            # Penalize moving the highest tile out of the bottom-right corner
+            score -= highest_tile * 10 if highest_tile not in corner_positions else highest_tile * 5
+        # Penalize if it's not in the corner
+
+        # 3. Penalize unsmooth boards
+        smoothness = 0
+        for i in range(4):
+            # Check row smoothness
+            row = arr[i * 4:(i + 1) * 4]
+            smoothness -= sum(abs(row[j] - row[j + 1]) for j in range(3))
+            # Check column smoothness
+            col = [arr[i + j * 4] for j in range(4)]
+            smoothness -= sum(abs(col[j] - col[j + 1]) for j in range(3))
+        score += smoothness * 1  # Low weight since it's secondary to monotonicity
+
+        # 4. Reward monotonicity
+        monotonicity = 0
+        for i in range(4):
+            # Check row monotonicity
+            row = arr[i * 4:(i + 1) * 4]
+            if all(row[j] <= row[j + 1] for j in range(3)) or all(row[j] >= row[j + 1] for j in range(3)):
+                monotonicity += highest_tile * 12
+            # Check column monotonicity
+            col = [arr[i + j * 4] for j in range(4)]
+            if all(col[j] <= col[j + 1] for j in range(3)) or all(col[j] >= col[j + 1] for j in range(3)):
+                monotonicity += highest_tile * 12
+        score += monotonicity
+
+        # 5. Reward tile merging potential
+        merge_reward = 0
+        for i in range(16):
+            if i % 4 != 3:  # Check horizontally
+                if arr[i] == arr[i + 1]:
+                    merge_reward += arr[i]
+            if i < 12:  # Check vertically
+                if arr[i] == arr[i + 4]:
+                    merge_reward += arr[i]
+        score += merge_reward * 8
+
+        # 6. Reward snake pattern alignment
+        snake_pattern = [
+            15, 14, 13, 12,  # Bottom row: right-to-left
+            8, 9, 10, 11,    # Second row: left-to-right
+            7, 6, 5, 4,      # Third row: right-to-left
+            0, 1, 2, 3       # Top row: left-to-right
+        ]
+
+        snake_score = 0
+        for i in range(15):  # Iterate through the snake pattern
+            if arr[snake_pattern[i]] >= arr[snake_pattern[i + 1]]:  # Ensure descending or equal values
+                snake_score += arr[snake_pattern[i]]
+            else:
+                break  # Stop if the snake pattern breaks
+        score += snake_score * 100  # High weight to prioritize snake alignment
+
+        return score
+
+
+    def play_step(self,action):
         #Did game end
         game_over = False
         move = self._can_move()
         if move == False:
             game_over = True
         # 1. collect user input
-        #self.arr[random.randint(0, 15)] = 1
+        self._update_ui()
         if not game_over:
-            self._update_ui()
-            while True:
-                event = pygame.event.wait()  # Wait for an event
+            for event in pygame.event.get():  # Wait for an event
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     quit()
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_LEFT:
-                        self.direction = Direction.LEFT
-                        break 
-                    elif event.key == pygame.K_RIGHT:
-                        self.direction = Direction.RIGHT
-                        break
-                    elif event.key == pygame.K_UP:
-                        self.direction = Direction.UP
-                        break
-                    elif event.key == pygame.K_DOWN:
-                        self.direction = Direction.DOWN
-                        break
-            self._update_ui()
             # 2. move
-            moved, reward = self._move(self.direction) # update the head
+            moved, reward = self._move(action) # update the head
             if(moved):
                 self._update_ui()
-                # 3. check if game over
                 ran = random.randint(0, 15)
                 while(self.arr[ran] != 0):
-                    ran = random.randint(0, 15)                
-                if random.randint(0, 99) >= 20:
-                    self.arr[ran] = 2
-                else:
-                    self.arr[ran] = 4
+                    ran = random.randint(0, 15)
+                self.arr[ran] = 2
+                reward += self.board_value()                
                 self.score += reward
-                return game_over, reward
-        self.score += reward
-        return game_over, reward
-        
+                
+                return reward, game_over, self.score
+            else:
+                 #print("repeat")
+                 return -10, game_over, self.score
+        return -100, game_over, self.score
+
     def _update_ui(self):
         self.display.fill((0,0,51))
         pygame.draw.rect(self.display, TANB, (50, 50, self.w - 100, self.h - 100))
@@ -113,7 +180,7 @@ class HumanGame:
         # text = font.render("Score: " + str(self.score), True, WHITE)
         # self.display.blit(text, [0, 0])
         pygame.display.flip()
-        
+    
     def get_color(self,value):
         if value == 0:
             return TAN  # Default background color for empty tiles
@@ -176,7 +243,7 @@ class HumanGame:
         elif value == 15:
             return (350, 350, 80, 80)
         return TAN  # Default color if value doesn't match
-
+    
     def _move_right(self):
         for i in range(4):
                 if(self.arr[2 + i*4] != 0 and self.arr[3 + i*4] == 0):
@@ -335,24 +402,24 @@ class HumanGame:
         return reward
             
     
-    def _move(self, direction):
+    def _move(self, action):
         reward = 0
         old_arr = self.arr.copy()
-        if direction == Direction.RIGHT:
+        if action == [1,0,0,0]: # Move Right
             self._move_right()
             reward += self._combine_right()
             self._move_right()   
                 
-        elif direction == Direction.LEFT:
+        elif action == [0,1,0,0]: # Move Left
             self._move_left()
             reward += self._combine_left()
             self._move_left()
                 
-        elif direction == Direction.DOWN:
+        elif action == [0,0,1,0]: # Move Down
             self._move_down()
             reward += self._combine_down()
             self._move_down()
-        elif direction == Direction.UP:
+        else: # Move Up Possible CHANGE
             self._move_up()
             reward += self._combine_up()
             self._move_up()
@@ -388,29 +455,3 @@ class HumanGame:
         if(amount_left > 0):
             return True
         return False
-            
-            
-
-if __name__ == '__main__':
-    game = HumanGame()
-    
-    # game loop
-    # while True:
-    #     game_over, score = game.play_step()
-        
-    #     if game_over == True:
-    #         break
-
-    game_over = False
-    while not game_over:
-        game_over, reward = game.play_step()
-        print("reward", reward)
-        print("score", game.score)
-    game._update_ui()
-
-    event = pygame.event.wait()
-    while event.type != pygame.KEYDOWN:
-        event = pygame.event.wait()
-    #game._update_ui()
-    #print('Final Score', score)
-    pygame.quit()
