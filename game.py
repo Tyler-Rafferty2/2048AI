@@ -131,35 +131,45 @@ class GameAI:
         return score
 
 
-    def play_step(self,action):
-        #Did game end
+    # In your game.py, replace the play_step method with this simplified version:
+
+    def play_step(self, action):
+        """Simplified play_step that returns just merge rewards"""
         game_over = False
         move = self._can_move()
         if move == False:
             game_over = True
-        # 1. collect user input
+            return 0, game_over, self.score  # No reward calculation here
+        
         self._update_ui()
         if not game_over:
-            for event in pygame.event.get():  # Wait for an event
+            for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     quit()
-            # 2. move
-            moved, reward = self._move(action) # update the head
-            if(moved):
+            
+            # Move and get merge reward only
+            moved, merge_reward = self._move(action)
+            
+            if moved:
                 self._update_ui()
+                # Add random tile
                 ran = random.randint(0, 15)
                 while(self.arr[ran] != 0):
                     ran = random.randint(0, 15)
-                self.arr[ran] = 2
-                reward += self.board_value()                
-                self.score += reward
                 
-                return reward, game_over, self.score
+                # 90% chance of 2, 10% chance of 4 (like original 2048)
+                if random.random() < 0.9:
+                    self.arr[ran] = 2
+                else:
+                    self.arr[ran] = 4
+                    
+                self.score += merge_reward
+                return merge_reward, game_over, self.score
             else:
-                 #print("repeat")
-                 return -10, game_over, self.score
-        return -100, game_over, self.score
+                return 0, game_over, self.score  # Return 0 for no merge reward
+        
+        return 0, game_over, self.score
 
     def _update_ui(self):
         self.display.fill((0,0,51))
